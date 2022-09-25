@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>Counter</title>
+
+<meta name="author" content="Denis Dumulong">
+<meta name="description" content="">
+<meta name="keywords" content="">
+
+<script src="dayjs.min.js"></script>
+
+<style>
+
+body { margin-top: 20px; }
+
+.container {
+    display: flex;
+    flex-flow: column nowrap;
+    justify-content: space-around;
+    align-items: stretch;
+}
+
+.well {
+    min-height: 20px;
+    padding: 19px;
+    margin-bottom: 20px;
+    background-color: #f5f5f5;
+    border: 1px solid #e3e3e3;
+    border-radius: 4px;
+    -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, .05);
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, .05);
+}
+
+.schedule {
+    display: flex;
+    flex-flow: row nowrap;
+    justify-content: space-between;
+    align-items: stretch;
+}
+
+.button-minus {
+    width: 26px;
+    border-top-left-radius: 12px;
+    border-bottom-left-radius: 12px;
+}
+
+.button-plus {
+    width: 26px;
+    border-top-right-radius: 12px;
+    border-bottom-right-radius: 12px;
+}
+
+.counter {
+    width: 24px;
+    text-align: center;
+}
+
+div.day-date {
+    text-align: center;
+    margin: 3px;
+    padding: 0 10px;
+    border: 0;
+    background-color: white;
+    border-bottom: 3px solid black;
+    color:black;
+    font-weight: bold;
+    border-radius: 0;
+}
+
+.day-count {
+    margin: 3px;
+    text-align: center
+}
+
+.left-col {
+    margin: 3px;
+    border-radius: 10px;
+    border: 1px solid black;
+    padding: 0 10px;
+    background-color: gray;
+    color: white;
+    font-weight: bold;
+}
+.link {
+    color: gray;
+    padding-right: 10px;
+    padding: 0 3px;
+    cursor: pointer;
+}
+</style>
+
+
+</head>
+
+<body>
+
+<!-- Main page content -->
+
+<div class="container">
+    <div class="well">
+        <div id="task">Daily Task Counter</div>
+    </div>
+    <div class="schedule"></div>
+</div>
+
+<!-- Header Templates -->
+
+<script id="header-template" type="text/template">
+    <div class="day">
+        <div class="day-date left-col">Date:</div>
+        {taskHeaders}
+    </div>
+</script>
+
+<script id="task-header-template" type="text/template">
+    <div class="left-col">{task}</div>
+</script>
+
+<!-- Days/Slots Templates -->
+
+<script id="day-template" type="text/template">
+    <div class="day">
+        <div class="day-date">
+            <span id="date_{day}">{label}</span>
+        </div>
+        {taskCountList}
+    </div>
+</script>
+
+<script id="task-count-template" type="text/template">
+    <div class="day-count">
+        <button class="button-action button-minus" data-id="{task}_{day}_minus">-</button>
+        <input class="counter" type="input" data-id="{task}_{day}" value="">
+        <button class="button-action button-plus" data-id="{task}_{day}_plus">+</button>
+    </div>
+</script>
+
+<!-- Main script -->
+
+<script>
+
+// Helper function: given an object o, replace {var} with value of property o.var for any string
+String.prototype.supplant = function (o) {
+    return this.replace(
+        /{([^{}]*)}/g,
+        function (a, b) {
+            var r = o[b];
+            return typeof r === 'string' || typeof r === 'number' ? r : a;
+        }
+    );
+};
+
+/*
+======================================================================
+Process what we have in the localStorage
+The localStorage value for "LS_counter" should be organized like this
+{
+    "meditate" : {
+        "20210928" : 3,
+        "20210929" : 1,
+        "20211001" : 0
+    },
+    "Other Things" : {
+        "20210928" : 7
+    }
+}
+
+========================================================================
+*/
+
+const DAY_TO_SHOW = 4;
+
+buildSchedule();
+
+function buildSchedule () {
+
+    const schedule = document.getElementsByClassName ("schedule")[0];
+
+    let data = getLSData();
+    const taskList = getTaskList(data);
+    const dayList = getDayList();
+    const headers = getScheduleHeader(taskList);
+    const cols = getScheduleCols (taskList, dayList);
+    schedule.innerHTML += headers + cols.join("");
+
+    setCounters (data);
+
+    addCounterClicks(data);
+}
+
+function getLSData() {
+    const ls = localStorage.getItem("LS_counter");
+    let data = {};
+    if (ls) {
+        data = JSON.parse(ls)
+    }
+    return data;
+}
+
+function getTaskList (data) {
+
+    const tasks = Object.keys(data);
+
+    // Add the task from the query if needed
+    const queryTask = (location.search ? decodeURI(location.search.substr(1)) : "");
+    if (queryTask && (!tasks.includes(queryTask))) {
+        tasks.push(queryTask);
+    }
+
+    tasks.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+    return tasks;
+}
+
+function getDayList () {
+    const dayList = [];
+    for (let i = DAY_TO_SHOW - 1; i >= 0; i--) {
+        const day = dayjs().add(-i, 'day').format('YYYYMMDD');
+        const label = dayjs().add(-i, 'day').format('MM/DD');
+        dayList.push( {day, label});
+    }
+    return dayList;
+}
+
+function getScheduleHeader (tasks) {
+    // The header
+    const headerTmpl = document.getElementById ("header-template").innerHTML;
+    const taskHeaderTmpl = document.getElementById ("task-header-template").innerHTML;
+    let taskHeaders = ""
+    for (let i=0; i < tasks.length; i++) {
+        taskHeaders += taskHeaderTmpl.supplant({task : tasks[i]});
+    }
+    return headerTmpl.supplant({taskHeaders});
+}
+
+function getScheduleCols (tasks, dayList) {
+
+    const dayTemplate = document.getElementById ("day-template").innerHTML;
+    const taskCountTmpl = document.getElementById ("task-count-template").innerHTML;
+    const cols = [];
+    // For each day:
+    for (let i = 0; i < dayList.length; i++) {
+        let taskCountList = ""
+        for (let taskNdx=0; taskNdx < tasks.length; taskNdx++) {
+            taskCountList += taskCountTmpl.supplant({day: dayList[i].day, task : tasks[taskNdx]});
+        }
+        const col = dayTemplate.supplant({label : dayList[i].label, day: dayList[i].day, taskCountList});
+        cols.push(col);
+    }
+    return cols;
+}
+
+function setCounters (data) {
+    const cells = document.querySelectorAll(".counter");
+    for (let i=0; i < cells.length; i++) {
+        const [task, day] = cells[i].dataset.id.split("_");
+        if (data[task]?.[day]) {
+            cells[i].value = data[task][day];
+        } else {
+            cells[i].value = 0;
+        }
+    }
+}
+
+function addCounterClicks (data) {
+    // Get all the links and add events to them
+    const buttons = document.querySelectorAll(".button-action");
+    for (let i = 0; i < buttons.length; i++) {
+        buttons[i].addEventListener("click", function (e) {
+            const [task, day, action] = e.target.dataset.id.split("_");
+            const cell = document.querySelector(`[data-id="${task}_${day}"]`);
+            if (action === "minus") {
+                if (data[task]?.[day]) {
+                    data[task][day] -= 1;
+                    cell.value = data[task][day];
+                }
+            } else if (action === "plus") {
+                if (!data[task]) {
+                    data[task] = {}
+                }
+                if (!data[task][day]) {
+                    data[task][day] = 1;
+                } else {
+                    data[task][day] += 1;
+                }
+                cell.value = data[task][day];
+            }
+        });
+    }
+}
+
+</script>
+
+</body>
+</html>
