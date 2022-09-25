@@ -16,7 +16,25 @@
 
 <style>
 
-body { margin-top: 20px; }
+* {
+  box-sizing: border-box;
+  /*outline: 1px solid limegreen !important;*/
+  /*background: rgb(0 100 0 / 0.1) !important;*/
+}
+
+html {
+  font-size: 10px;
+}
+
+body {
+    margin-top: 20px;
+    font-size: 2rem;
+}
+
+.title {
+    font-size: 2.4rem;
+    font-weight: bold;
+}
 
 .container {
     display: flex;
@@ -26,9 +44,9 @@ body { margin-top: 20px; }
 }
 
 .well {
-    min-height: 20px;
-    padding: 19px;
-    margin-bottom: 20px;
+    min-height: 2rem;
+    padding: 2rem;
+    margin-bottom: 2rem;
     background-color: #f5f5f5;
     border: 1px solid #e3e3e3;
     border-radius: 4px;
@@ -39,31 +57,56 @@ body { margin-top: 20px; }
 .schedule {
     display: flex;
     flex-flow: row nowrap;
-    justify-content: space-between;
-    align-items: stretch;
+    justify-content:space-between;
+    align-items:stretch;
+}
+
+.schedule > div {
+    flex: 1 0 auto;
 }
 
 .button-minus {
-    width: 26px;
-    border-top-left-radius: 12px;
-    border-bottom-left-radius: 12px;
+    width: 2.6rem;
+    border-top-left-radius: 1.2rem;
+    border-bottom-left-radius: 1.2rem;
 }
 
 .button-plus {
-    width: 26px;
-    border-top-right-radius: 12px;
-    border-bottom-right-radius: 12px;
+    width: 2.6rem;
+    border-top-right-radius: 1.2rem;
+    border-bottom-right-radius: 1.2rem;
 }
 
 .counter {
-    width: 24px;
+    width: 2.4rem;
     text-align: center;
+}
+
+.add-task {
+    border-radius: 1rem;
+    width: 6rem;
+    margin: 0 2rem;
+}
+
+.delete-task {
+    background-color: inherit;
+    color: white;
+    border: 0;
+    font-size: 1.8rem;
+
+}
+
+.day {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items:stretch
 }
 
 div.day-date {
     text-align: center;
     margin: 3px;
-    padding: 0 10px;
+    padding: 0 1rem;
     border: 0;
     background-color: white;
     border-bottom: 3px solid black;
@@ -74,23 +117,27 @@ div.day-date {
 
 .day-count {
     margin: 3px;
-    text-align: center
+    text-align: center;
+    margin: 1.2rem 0;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 6px;
+    justify-content: center;
 }
 
 .left-col {
     margin: 3px;
-    border-radius: 10px;
+    border-radius: 1rem;
     border: 1px solid black;
-    padding: 0 10px;
+    padding: 0 1rem;
     background-color: gray;
     color: white;
     font-weight: bold;
-}
-.link {
-    color: gray;
-    padding-right: 10px;
-    padding: 0 3px;
-    cursor: pointer;
+    margin: 1.2rem 0;
+    display: flex;
+    justify-content: start;
+    align-items: center;
 }
 </style>
 
@@ -103,7 +150,10 @@ div.day-date {
 
 <div class="container">
     <div class="well">
-        <div id="task">Daily Task Counter</div>
+        <div class="title">
+            Daily Task Counter
+            <button class="add-task" name="btnAdd">&#10133;</button>
+        </div>
     </div>
     <div class="schedule"></div>
 </div>
@@ -118,7 +168,10 @@ div.day-date {
 </script>
 
 <script id="task-header-template" type="text/template">
-    <div class="left-col">{task}</div>
+    <div class="left-col">
+        <button class="delete-task" data-task="{task}">&#128465;</button>
+        {task}
+    </div>
 </script>
 
 <!-- Days/Slots Templates -->
@@ -173,6 +226,7 @@ The localStorage value for "LS_counter" should be organized like this
 ========================================================================
 */
 
+
 const DAY_TO_SHOW = 4;
 
 buildSchedule();
@@ -191,6 +245,8 @@ function buildSchedule () {
     setCounters (data);
 
     addCounterClicks(data);
+    addAddTaskClick(data);
+    addDeleteTaskClicks(data);
 }
 
 function getLSData() {
@@ -205,12 +261,6 @@ function getLSData() {
 function getTaskList (data) {
 
     const tasks = Object.keys(data);
-
-    // Add the task from the query if needed
-    const queryTask = (location.search ? decodeURI(location.search.substr(1)) : "");
-    if (queryTask && (!tasks.includes(queryTask))) {
-        tasks.push(queryTask);
-    }
 
     tasks.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 
@@ -270,6 +320,7 @@ function setCounters (data) {
 function addCounterClicks (data) {
     // Get all the links and add events to them
     const buttons = document.querySelectorAll(".button-action");
+    let refresh = false;
     for (let i = 0; i < buttons.length; i++) {
         buttons[i].addEventListener("click", function (e) {
             const [task, day, action] = e.target.dataset.id.split("_");
@@ -278,10 +329,12 @@ function addCounterClicks (data) {
                 if (data[task]?.[day]) {
                     data[task][day] -= 1;
                     cell.value = data[task][day];
+                    localStorage.setItem("LS_counter", JSON.stringify(data));
                 }
             } else if (action === "plus") {
                 if (!data[task]) {
                     data[task] = {}
+                    refresh = true; //Reload the page
                 }
                 if (!data[task][day]) {
                     data[task][day] = 1;
@@ -289,11 +342,43 @@ function addCounterClicks (data) {
                     data[task][day] += 1;
                 }
                 cell.value = data[task][day];
+                localStorage.setItem("LS_counter", JSON.stringify(data));
+                if (refresh) { location.reload(); }
             }
+
         });
     }
 }
 
+function addAddTaskClick () {
+    const btnAdd = document.querySelector(".add-task");
+    btnAdd.addEventListener("click", function (e) {
+        const task = prompt("New task name:");
+        if (task) {
+            const data = getLSData();
+            if (!data[task]) {
+                data[task] = {};
+            }
+            localStorage.setItem("LS_counter", JSON.stringify(data));
+            location.reload();
+        }
+    });
+}
+
+
+function addDeleteTaskClicks (data) {
+
+    const deletes = document.querySelectorAll(".delete-task");
+
+    for (let i = 0; i < deletes.length; i++) {
+        deletes[i].addEventListener("click", function (e) {
+            const task = e.target.dataset.task;
+            delete data[task];
+            localStorage.setItem("LS_counter", JSON.stringify(data));
+            location.reload();
+        });
+    }
+}
 </script>
 
 </body>
