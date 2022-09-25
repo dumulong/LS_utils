@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>Daily</title>
+
+<meta name="author" content="Denis Dumulong">
+<meta name="description" content="">
+<meta name="keywords" content="">
+
+<script src="dayjs.min.js"></script>
+
+<style>
+
+body { margin-top: 20px; }
+
+.container {
+    display: flex;
+    flex-flow: column nowrap;
+    justify-content: space-around;
+    align-items: stretch;
+}
+#task {
+    font-weight: bold;
+    font-size: 2em;
+    margin-bottom: 10px;
+}
+
+#tasks {
+    display: flex;
+    flex-flow: row wrap;
+}
+
+.well {
+    min-height: 20px;
+    padding: 19px;
+    margin-bottom: 20px;
+    background-color: #f5f5f5;
+    border: 1px solid #e3e3e3;
+    border-radius: 4px;
+    -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, .05);
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, .05);
+}
+
+.schedule {
+    display: flex;
+    flex-flow: row nowrap;
+    justify-content: space-between;
+    align-items: stretch;
+}
+
+div.day-date {
+    text-align: center;
+    margin: 3px;
+    padding: 0 10px;
+    border: 0;
+    background-color: white;
+    border-bottom: 3px solid black;
+    color:black;
+    font-weight: bold;
+    border-radius: 0;
+}
+
+.day-check {
+    margin: 3px;
+    text-align: center
+}
+
+.left-col {
+    margin: 3px;
+    border-radius: 10px;
+    border: 1px solid black;
+    padding: 0 10px;
+    background-color: gray;
+    color: white;
+    font-weight: bold;
+}
+.link {
+    color: gray;
+    padding-right: 10px;
+    padding: 0 3px;
+    cursor: pointer;
+}
+</style>
+
+
+</head>
+
+<body>
+
+<!-- Main page content -->
+
+<div class="container">
+    <div class="well">
+        <div id="task"></div>
+        <div id="tasks"></div>
+    </div>
+    <div class="schedule"></div>
+</div>
+
+<!-- Header Templates -->
+
+<script id="header-template" type="text/template">
+    <div class="day">
+        <div class="day-date left-col">Date:</div>
+        {headerSlots}
+    </div>
+</script>
+
+<script id="header-slot-template" type="text/template">
+    <div class="left-col">{label}:</div>
+</script>
+
+<!-- Days/Slots Templates -->
+
+<script id="day-template" type="text/template">
+    <div class="day">
+        <div class="day-date">
+            <span id="{day}_date">{label}</span>
+        </div>
+        {slotList}
+    </div>
+</script>
+
+<script id="slot-template" type="text/template">
+    <div class="day-check">
+        <input type="checkbox" class="check-box" id="{day}_{slot}">
+    </div>
+</script>
+
+<!-- Main script -->
+
+<script>
+
+// Helper function: given an object o, replace {var} with value of property o.var for any string
+String.prototype.supplant = function (o) {
+    return this.replace(
+        /{([^{}]*)}/g,
+        function (a, b) {
+            var r = o[b];
+            return typeof r === 'string' || typeof r === 'number' ? r : a;
+        }
+    );
+};
+
+// Define the main variables
+let data = []; // Main structure for the schedule
+let tasks = []; // List of tasks
+let dayList = []; // List of date in the schedule
+
+let redirectTo = ""
+
+const unknownTask = "Unknown"
+
+// The current task
+let taskLabel = (location.search ? decodeURI(location.search.substr(1)) : unknownTask)
+const task = document.getElementById ("task")
+task.innerHTML = taskLabel;
+
+// The schedule
+const schedule = document.getElementsByClassName ("schedule")[0];
+
+const headerCol = document.getElementById ("header-template").innerHTML;
+const headerSlot = document.getElementById ("header-slot-template").innerHTML;
+
+const dayTemplate = document.getElementById ("day-template").innerHTML;
+const slotTemplate = document.getElementById ("slot-template").innerHTML;
+
+const days = 4;
+
+let slots = [
+    { label: 'Morning', value: 'morning' },
+    { label: 'Lunch', value: 'lunch' },
+    { label: 'Evening', value: 'evening' }
+];
+
+// The header
+let headerSlots = ""
+for (let i=0; i < slots.length; i++) {
+    headerSlots += headerSlot.supplant({label : slots[i].label});
+}
+let content = headerCol.supplant({headerSlots})
+
+// For each day:
+for (let i=days-1; i >= 0; i--) {
+    const label = dayjs().add(-i, 'day').format('MM/DD');
+    const day = dayjs().add(-i, 'day').format('YYYYMMDD');
+    let slotList = ""
+    for (let j=0; j < slots.length; j++) {
+        slotList += slotTemplate.supplant({day, slot : slots[j].value});
+    }
+    const col = dayTemplate.supplant({label, day, slotList});
+    content += col;
+    dayList.push(day);
+}
+schedule.innerHTML += content;
+
+/*
+======================================================================
+Process what we have in the localStorage
+The localStorage value for "daily" should be organized like this
+[
+    {
+        "task": "pills",
+        "values" : [
+            { date : "20210928", checks : ["morning", "lunch"] },
+            { date : "20210929", checks : ["morning"] },
+            { date : "20211001", checks : ["morning", "evening"] }
+        ]
+    },
+    {
+        "task": "Other Things",
+        "values" : [
+            { date : "20210928", checks : ["evening"] }
+        ]
+    }
+]
+========================================================================
+*/
+
+const ls = localStorage.getItem("daily");
+if (ls) {
+    data = JSON.parse(ls)
+
+    // Get a list of all the tasks
+    for(let i =0; i < data.length; i++){
+        tasks.push(data[i].task)
+    }
+
+    tasks.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+    // Create the links base on the tasks
+    const links = tasks.map(x => `<span class="link">${x}</span>`)
+    const tasksLabels = document.getElementById ("tasks")
+    tasksLabels.innerHTML = links.join("|");
+
+    // Now check the selected checkbox for the current task
+    for (let task = 0; task < data.length; task++) {
+        if (taskLabel == data[task].task) {
+            cleanData(data[task].values, dayList)
+            checkValues(data[task].values, dayList)
+        }
+    }
+}
+
+// Remove any old data not in our view
+function cleanData(values, myDates) {
+    for (i = values.length-1; i >= 0 ; i--) {
+        if (!myDates.includes(values[i].date)) {
+            values.splice(i, 1)
+        }
+    }
+    localStorage.setItem("daily", JSON.stringify(data));
+}
+
+// Add a check on the checkboxes
+function checkValues(values, myDates) {
+    for (i = 0; i < values.length; i++) {
+        if (myDates.includes(values[i].date)) {
+            for (j = 0; j < values[i].checks.length; j++) {
+                const itemId = values[i].date + "_" + values[i].checks[j];
+                const item = document.getElementById (itemId)
+                item.checked = true;
+            }
+        }
+    }
+}
+
+// Now that we have all the tasks, do we need to redirect to our first task?
+if ((taskLabel === unknownTask) && (tasks.length > 0)) {
+    if ((!tasks.includes(unknownTask)) &&
+        (tasks[0] !== taskLabel)) {
+            itemRedirect(tasks[0])
+        };
+}
+
+// Get all the checkboxes and add some events to them
+const checkboxes = document.querySelectorAll(".check-box");
+
+for (var i = 0; i < checkboxes.length; i++) {
+
+    checkboxes[i].addEventListener("click", function (e) {
+
+        const checked = e.target.checked;
+        const parts = e.target.id.split("_");
+        const day = parts[0];
+        const time_slot = parts[1];
+
+        let task = data.find (x => x.task === taskLabel)
+        if (!task) {
+            task = { task : taskLabel, values : [] };
+            data.push (task);
+            redirectTo = taskLabel
+        }
+
+        const item = task.values.find (x => x.date === day)
+
+        if (checked) {
+            // We are adding a date
+            if (item) {
+                if (!item.checks.includes(time_slot)) {
+                    item.checks.push(time_slot)
+                }
+            } else {
+                task.values.push({ "date" : day, "checks" : [time_slot]})
+            }
+        } else {
+            // We are removing a date
+            if (item) {
+                let ndx = item.checks.findIndex (x => x === time_slot)
+                if (ndx >= 0) {
+                    item.checks.splice(ndx, 1)
+                }
+                // Do we need to remove that date?
+                if (item.checks.length === 0) {
+
+                    let ndxDate = task.values.findIndex (x => x.date === day)
+                    if (ndxDate >= 0) {
+                        task.values.splice(ndxDate, 1)
+                    }
+                }
+                // Do we need to remove that task?
+                if (task.values.length === 0) {
+                    let ndxTask = data.findIndex (x => x.task === taskLabel)
+                    if (ndxTask >= 0) {
+                        data.splice(ndxTask, 1)
+                    }
+                    // Need to be redirected to the first in the list
+                    tasks = tasks.filter(x => x !== taskLabel);
+                    redirectTo = (tasks.length > 0 ? tasks[0] : "")
+                }
+            }
+        }
+        // TODO, remove the task if there's no checks!
+        localStorage.setItem("daily", JSON.stringify(data));
+        if (redirectTo) { itemRedirect(redirectTo); }
+    });
+}
+
+// Get all the links and add events to them
+const links = document.querySelectorAll(".link");
+for (var i = 0; i < links.length; i++) {
+    links[i].addEventListener("click", function (e) {
+        const item = e.target.innerHTML;
+        itemRedirect(item)
+    });
+}
+
+// Helper function
+function itemRedirect (searchQuery) {
+    window.location.search = searchQuery
+}
+
+</script>
+
+</body>
+</html>
